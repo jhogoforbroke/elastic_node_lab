@@ -1,0 +1,11 @@
+{
+  "name": "elastic_node_lab",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "npm test"
+  },
+  "author": "jmarinho.dev@gmail.com",
+  "license": "MIT"
+}

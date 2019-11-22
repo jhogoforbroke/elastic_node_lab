@@ -1,0 +1,65 @@
+version: '3.6'
+services:
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_TAG}
+    container_name: elasticsearch
+    secrets:
+      - source: ca.crt
+      target: /usr/share/elasticsearch/config/certs/ca/ca.crt
+      - source: elasticsearch.yml
+      target: /usr/share/elasticsearch/config/elasticsearch.yml
+      - source: elasticsearch.keystore
+      target: /usr/share/elasticsearch/config/elasticsearch.keystore
+      - source: elasticsearch.key
+      target: /usr/share/elasticsearch/config/certs/elasticsearch/elasticsearch.key
+      - source: elasticsearch.crt
+      target: /usr/share/elasticsearch/config/certs/elasticsearch/elasticsearch.crt
+    ports: ['9200:9200']
+    networks: ['stack']
+    volumes:
+      - 'es_data:/usr/share/elasticsearch/data'
+      - './scripts/setup-users.sh:/usr/local/bin/setup-users.sh:ro'
+    healthcheck:
+      test: curl --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -s https://localhost:9200 >/dev/null; if [[ $$? == 52 ]]; then echo 0; else echo 1; fi
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTICSEARCH_TAG}
+    container_name: kibana
+    secrets:
+      - source: kibana.yml
+      target: /usr/share/kibana/config/kibana.yml
+      - source: kibana.keystore
+      target: /usr/share/kibana/data/kibana.keystore
+      - source: ca.crt
+      target: /usr/share/kibana/config/certs/ca/ca.crt
+      - source: kibana.key
+      target: /usr/share/kibana/config/certs/kibana/kibana.key
+      - source: kibana.crt
+      target: /usr/share/kibana/config/certs/kibana/kibana.crt
+    ports: ['5601:5601']
+    networks: ['stack']
+    depends_on: ['elasticsearch']
+    healthcheck:
+      test: curl --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -s https://localhost:5601 >/dev/null; if [[ $$? == 52 ]]; then echo 0; else echo 1; fi
+      interval: 30s
+      timeout: 10s
+      retries: 5
+
+  nodejs:
+    container_name: nodejs
+    build:
+      context: ./
+    command: [""]
+    volumes:
+      - ./src:/app
+    ports:
+      - '3000:3000'
+      - '9000:9000'
+    env_file: ./.env
+    depends_on:
+      - front_end_login
+      - back_end_login
+
