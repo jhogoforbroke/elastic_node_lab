@@ -1,65 +1,216 @@
-version: '3.6'
+version: '3.7'
 services:
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTICSEARCH_TAG}
-    container_name: elasticsearch
-    secrets:
-      - source: ca.crt
-      target: /usr/share/elasticsearch/config/certs/ca/ca.crt
-      - source: elasticsearch.yml
-      target: /usr/share/elasticsearch/config/elasticsearch.yml
-      - source: elasticsearch.keystore
-      target: /usr/share/elasticsearch/config/elasticsearch.keystore
-      - source: elasticsearch.key
-      target: /usr/share/elasticsearch/config/certs/elasticsearch/elasticsearch.key
-      - source: elasticsearch.crt
-      target: /usr/share/elasticsearch/config/certs/elasticsearch/elasticsearch.crt
-    ports: ['9200:9200']
-    networks: ['stack']
+    image: docker.elastic.co/elasticsearch/elasticsearch:7.4.0
+    container_name: elasticsearch1
+    environment:
+      - node.name=elasticsearch1
+      - cluster.name=docker-cluster
+      - cluster.initial_master_nodes=elasticsearch1
+      - bootstrap.memory_lock=true
+      - "ES_JAVA_OPTS=-Xms256M -Xmx256M"
+      - http.cors.enabled=true
+      - http.cors.allow-origin=*
+      - network.host=_eth0_
+    ulimits:
+      nproc: 65535
+      memlock:
+        soft: -1
+        hard: -1
+    cap_add:
+      - ALL
+    # privileged: true
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '1'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 5s
+        max_attempts: 3
+        window: 10s
     volumes:
-      - 'es_data:/usr/share/elasticsearch/data'
-      - './scripts/setup-users.sh:/usr/local/bin/setup-users.sh:ro'
-    healthcheck:
-      test: curl --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -s https://localhost:9200 >/dev/null; if [[ $$? == 52 ]]; then echo 0; else echo 1; fi
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  kibana:
-    image: docker.elastic.co/kibana/kibana:${ELASTICSEARCH_TAG}
-    container_name: kibana
-    secrets:
-      - source: kibana.yml
-      target: /usr/share/kibana/config/kibana.yml
-      - source: kibana.keystore
-      target: /usr/share/kibana/data/kibana.keystore
-      - source: ca.crt
-      target: /usr/share/kibana/config/certs/ca/ca.crt
-      - source: kibana.key
-      target: /usr/share/kibana/config/certs/kibana/kibana.key
-      - source: kibana.crt
-      target: /usr/share/kibana/config/certs/kibana/kibana.crt
-    ports: ['5601:5601']
-    networks: ['stack']
-    depends_on: ['elasticsearch']
-    healthcheck:
-      test: curl --cacert /usr/share/elasticsearch/config/certs/ca/ca.crt -s https://localhost:5601 >/dev/null; if [[ $$? == 52 ]]; then echo 0; else echo 1; fi
-      interval: 30s
-      timeout: 10s
-      retries: 5
-
-  nodejs:
-    container_name: nodejs
-    build:
-      context: ./
-    command: [""]
-    volumes:
-      - ./src:/app
+      - type: volume
+        source: logs
+        target: /var/log
+      - type: volume
+        source: esdata1
+        target: /usr/share/elasticsearch/data
+    networks:
+      - elastic
+      - ingress
     ports:
-      - '3000:3000'
-      - '9000:9000'
-    env_file: ./.env
-    depends_on:
-      - front_end_login
-      - back_end_login
+      - 9200:9200
+      - 9300:9300
+  kibana:
+    image: docker.elastic.co/kibana/kibana:7.4.0
+    container_name: kibana
+    environment:
+      SERVER_NAME: localhost
+      ELASTICSEARCH_URL: http://elasticsearch1:9200/
+    ports:
+      - 5601:5601
+    volumes:
+      - type: volume
+        source: logs
+        target: /var/log
+    ulimits:
+      nproc: 65535
+      memlock:
+        soft: -1
+        hard: -1
+    cap_add:
+      - ALL
+    deploy:
+      replicas: 1
+      update_config:
+        parallelism: 1
+        delay: 10s
+      resources:
+        limits:
+          cpus: '1'
+          memory: 256M
+        reservations:
+          cpus: '1'
+          memory: 256M
+      restart_policy:
+        condition: on-failure
+        delay: 30s
+        max_attempts: 3
+        window: 120s
+    networks:
+      - elastic
+      - ingress
+  auditbeat:
+    image: docker.elastic.co/beats/auditbeat:7.4.0
+    command: auditbeat -e -strict.perms=false
+    user: root
+    environment:
+      - setup.kibana.host=kibana:5601
+      - output.elasticsearch.hosts=["elasticsearch:9200"]
+    cap_add: ['AUDIT_CONTROL', 'AUDIT_READ']
+    pid: "host"
+    volumes:
+    #   - ${PWD}/configs/auditbeat.docker.yml:/usr/share/auditbeat/auditbeat.yml
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - elastic
+  metricbeat:
+    image: docker.elastic.co/beats/metricbeat:7.4.0
+    # command: --strict.perms=false
+    environment:
+      - setup.kibana.host=kibana:5601
+      - output.elasticsearch.hosts=["elasticsearch:9200"]
+    cap_add:
+      - AUDIT_CONTROL
+      - AUDIT_READ
+    volumes:
+      # - ${PWD}/configs/metricbeat.docker.yml:/usr/share/metricbeat/metricbeat.yml
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - /sys/fs/cgroup:/hostfs/sys/fs/cgroup:ro
+      - /proc:/hostfs/proc:ro
+      - /:/hostfs:ro
+    networks:
+      - elastic
 
+  heartbeat:
+    image: docker.elastic.co/beats/heartbeat:7.4.0
+    command: --strict.perms=false
+    environment:
+      - setup.kibana.host=kibana:5601
+      - output.elasticsearch.hosts=["elasticsearch:9200"]
+    # volumes:
+    #   - ${PWD}/configs/heartbeat.docker.yml:/usr/share/heartbeat/heartbeat.yml
+    networks:
+      - elastic
+
+  packetbeat:
+    image: docker.elastic.co/beats/packetbeat:7.4.0
+    command: --strict.perms=false
+    environment:
+      - setup.kibana.host=kibana:5601
+      - output.elasticsearch.hosts=["elasticsearch:9200"]
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+    # volumes:
+    #   - ${PWD}/configs/packetbeat.docker.yml:/usr/share/packetbeat/packetbeat.yml
+    networks:
+      - elastic
+
+  filebeat:
+    image: docker.elastic.co/beats/filebeat:7.4.0
+    command: --strict.perms=false
+    environment:
+      - setup.kibana.host=kibana:5601
+      - output.elasticsearch.hosts=["elasticsearch:9200"]
+    ports:
+      - 9000:9000
+    volumes:
+      # - ${PWD}/configs/filebeat.docker.yml:/usr/share/filebeat/filebeat.yml
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro
+      - /var/run/docker.sock:/var/run/docker.sock
+    networks:
+      - elastic
+  apmserver:
+    image: docker.elastic.co/apm/apm-server:7.4.0
+    command: --strict.perms=false
+    ports:
+      - 8200:8200
+      - 8201:8200
+    environment:
+      - apm-server.host=0.0.0.0
+      - setup.kibana.host=kibana:5601
+      - output.elasticsearch.hosts=["elasticsearch:9200"]
+    # volumes:
+    #   - ${PWD}/configs/apm-server.yml:/usr/share/apm-server/apm-server.yml
+    networks:
+        - elastic
+  app-search:
+    image: docker.elastic.co/app-search/app-search:7.4.0
+    ports:
+      - 3002:3002
+    environment:
+      secret_session_key: supersecretsessionkey
+      elasticsearch.host: http://elasticsearch1:9200/
+      allow_es_settings_modification: "true"
+    networks:
+        - elastic
+  nginx:
+    image: nginx:latest
+    ports:
+        - 8081:80
+    volumes:
+        - ${PWD}/nginx-config/:/etc/nginx/conf.d/
+    command: /bin/bash -c "nginx -g 'daemon off;'"
+    ulimits:
+      nproc: 65535
+    networks:
+      - ingress
+volumes:
+  esdata1:
+  logs:
+
+networks:
+  elastic:
+  ingress:
+
+# configs:
+#   auditbeat_config:
+#     file: configs/auditbeat.docker.yml
+#   filebeat_config:
+#     file: configs/filebeat.docker.yml
+#   heartbeat_config:
+#     file: configs/heartbeat.docker.yml
+#   metricbeat_config:
+#     file: configs/metricbeat.docker.yml
+#   packetbeat_config:
+#     file: configs/packetbeat.docker.yml
