@@ -4,7 +4,11 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npm test"
+    "test": "npm test",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
   },
   "author": "jmarinho.dev@gmail.com",
   "license": "MIT"
