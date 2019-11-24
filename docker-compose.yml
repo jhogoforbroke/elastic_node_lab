@@ -91,11 +91,12 @@ services:
       - elastic
   node:
     build: .
+    image: elastic_node_lab:latest
     container_name: node_elastic_lab
     ports:
       - 3000:3000
     volumes:
-      - ./src:/app
+      - ./src:/usr/src/app
     environment:
       NODE_ENV: development
       PORT: 3000
@@ -103,7 +104,6 @@ services:
       - elasticsearch
     networks:
       - elastic
-
 
 volumes:
   esdata:

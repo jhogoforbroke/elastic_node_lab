@@ -1,15 +1,24 @@
 {
   "name": "elastic_node_lab",
   "version": "1.0.0",
-  "description": "",
+  "description": "node lab for elasticsearch use cases",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jhogoforbroke/elastic_node_lab"
+  },
   "main": "index.js",
   "scripts": {
     "test": "npm test",
-    "start": "node index.js"
-  },
-  "dependencies": {
-    "express": "^4.17.1"
+    "start": "node index",
+    "start.dev": "nodemon"
   },
   "author": "jmarinho.dev@gmail.com",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "elasticsearch": "^16.5.0",
+    "express": "^4.17.1"
+  },
+  "devDependencies": {
+    "nodemon": "^2.0.1"
+  }
 }

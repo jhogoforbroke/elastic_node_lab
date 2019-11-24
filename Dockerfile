@@ -1,6 +1,16 @@
 FROM node:12.13.1
 
-WORKDIR /app
-COPY ./src /app/
+# Create app directory
+RUN mkdir -p /usr/src/app
+WORKDIR /usr/src/app
+
+# Install dependencies
+COPY ./src/package.json .
 RUN npm install
-CMD [ "npm", "start" ]
+
+# Bundle app source
+COPY ./src .
+
+# Exports
+EXPOSE 3000
+CMD [ "npm", "run", "start.dev" ]
