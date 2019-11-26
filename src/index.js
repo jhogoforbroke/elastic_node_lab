@@ -27,8 +27,8 @@ app.post('/api/elasticsearch/createIndex', (req, res) => {
   elasticClient.indices.create({
     index: index
   })
-  .then(res.status(200).json(resp))
-  .catch(res.status(500).json(err))
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
 })
 
 app.get('/api/elasticsearch/indexExists/:index', (req, res) => {
@@ -37,8 +37,8 @@ app.get('/api/elasticsearch/indexExists/:index', (req, res) => {
   elasticClient.indices.exists({
     index: index
   })
-  .then(res.status(200).json(resp))
-  .catch(res.status(500).json(err))
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
 })
 
 app.put('/api/elasticsearch/mapping/:index', (req, res) => {
@@ -50,8 +50,8 @@ app.put('/api/elasticsearch/mapping/:index', (req, res) => {
     type: docType,
     body: payload
   })
-  .then(res.status(200).json(resp))
-  .catch(res.status(500).json(err))
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
 })
 
 app.post('/api/elasticsearch/document', (req, res) => {
@@ -62,8 +62,8 @@ app.post('/api/elasticsearch/document', (req, res) => {
     type: docType,
     body: payload
   })
-  .then(res.status(200).json(resp))
-  .catch(res.status(500).json(err))
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
 })
 
 app.put('/api/elasticsearch/document/:index', (req, res) => {
@@ -76,8 +76,8 @@ app.put('/api/elasticsearch/document/:index', (req, res) => {
     id: id,
     body: payload
   })
-  .then(res.status(200).json(resp))
-  .catch(res.status(500).json(err))
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
 })
 
 app.get('/api/elasticsearch/search', (req, res) => {
@@ -88,20 +88,29 @@ app.get('/api/elasticsearch/search', (req, res) => {
     type: docType,
     body: payload
   })
-  .then(res.status(200).json(resp))
-  .catch(res.status(500).json(err))
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
 })
 
-app.delete('/api/elasticsearch/delete/document', (req, res) => {
-  let { index, id, docType } = req.body
+app.delete('/api/elasticsearch/delete/document/:id', (req, res) => {
+  let id = req.params.id
+  let { index, docType } = req.body
 
   elasticClient.delete({
     index: index,
     type: docType,
-    body: payload
+    id: id
   })
-  .then(res.status(200).json(resp))
-  .catch(res.status(500).json(err))
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
+})
+
+app.delete('/api/elasticsearch/delete/documents', (req, res) => {
+  elasticClient.delete({
+    index: '_all'
+  })
+  .then(() => { return res.status(200).json(resp) })
+  .catch(() => { return res.status(500).json(err) })
 })
 
 app.listen(3000, () => {
